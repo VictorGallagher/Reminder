@@ -4,7 +4,7 @@
 from wx import DateTime
 from datetime import datetime
 from dateutil.relativedelta import *
-
+#from dateutil import relativedelta
 '''useful date functions'''
 
 def add_minutes(d, n):
@@ -64,7 +64,7 @@ def convert_wxDateTime_to_datetime(mwxDateTime):
 
 
 def convert_datetime_to_wxDateTime(pyDateTime):
-    return (
+    return DateTime(
         int(pyDateTime.year),
         int(pyDateTime.month) - 1,
         int(pyDateTime.day),

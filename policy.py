@@ -2,8 +2,10 @@
 
 '''Policy and Reminder classes'''
 import uuid
-from wx import DateTime
+import wx
 from datetime import datetime
+import date_util as du
+
 
 class Policy(object):
     def __init__(self, title='Title', message='message',
@@ -22,13 +24,13 @@ class Policy(object):
 
     def get_nth_policy_date(self, n=1):
         if self.period == 'Daily':
-            return add_days(self.date, n)
+            return du.add_days(self.date, n)
         elif self.period == 'Weekly':
-            return add_weeks(self.date, n)
+            return du.add_weeks(self.date, n)
         elif self.period == 'Monthly':
-            return add_months(self.date, n)
+            return du.add_months(self.date, n)
         elif self.period == 'Anually':
-            return add_years(self.date, n)
+            return du.add_years(self.date, n)
         else:
             pass
 
@@ -41,7 +43,7 @@ class Policy(object):
         return self.get_nth_policy_date(self.prd[self.period])
 
     def advance_policy_time(self, n=30):
-        self.date = add_minutes(self.date, n)
+        self.date = du.add_minutes(self.date, n)
 
 #    def __str__(self):
 #        return str(self.__class__) + ': ' + str(self.__dict__)
@@ -79,7 +81,7 @@ class Reminder(object):
         self.timer = timer
 
     def advance_reminder_time(self, n=30):
-        self.exec_datetime = add_minutes(self.date, n)
+        self.exec_datetime = du.add_minutes(self.date, n)
 
     def cancel_timer(self):
         self.timer.cancel()
@@ -106,7 +108,7 @@ def create_policly_sentence(plcy):
             str(plcy.title) + '\' every day at ' + str(plcy.s_time) + '.'
         return sentence
     elif plcy.period == 'Weekly':
-        weekday = self.get_weekday_name(plcy.date.weekday())
+        weekday = du.get_weekday_name(plcy.date.weekday())
         sentence = 'Execute \'' + \
             str(plcy.title) + '\' every ' + str(weekday) + \
             ' at ' + str(plcy.s_time) + '.'
@@ -114,13 +116,13 @@ def create_policly_sentence(plcy):
     elif plcy.period == 'Monthly':
         day = plcy.date.day
         sentence = 'Execute \'' + str(plcy.title) + '\' on the ' + str(
-            day) + self.get_sufix(day) + ' of every month at ' + str(plcy.s_time) + '.'
+            day) + du.get_sufix(day) + ' of every month at ' + str(plcy.s_time) + '.'
         return sentence
     elif plcy.period == 'Anually':
         day = plcy.date.day
-        month = self.get_month_name(plcy.date.month)
+        month = du.get_month_name(plcy.date.month)
         sentence = 'Execute \'' + plcy.title + '\' on the ' + \
-            str(day) + self.get_sufix(day) + ' of every ' + \
+            str(day) + du.get_sufix(day) + ' of every ' + \
             month + ' at ' + str(plcy.s_time) + '.'
         return sentence
     else:
