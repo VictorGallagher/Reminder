@@ -170,7 +170,7 @@ def create_new_reminder(plcy, i):
             return rmdr
 
 def create_pending_reminders(plcy):
-    '''Takes a policy instance an generates its pending
+    '''Takes a policy instance and generates its pending
     reminder instances, depending on the 'per' dictionary'''
     per = {'Daily': 7, 'Weekly': 4, 'Monthly': 3,
            'Anually': 2, 'One Time Only': 1}

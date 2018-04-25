@@ -74,7 +74,7 @@ def convert_datetime_to_wxDateTime(pyDateTime):
 
 
 def splice_wxDate_wxTime(date, time):
-    '''Merge a date with a time, takes wxDate and wxTime'''
+    '''Merge a date with a time, takes wxDate and wxTime, returns datetime '''
     date.hour = time.hour
     date.minute = time.minute
     date = convert_wxDateTime_to_datetime(date)
