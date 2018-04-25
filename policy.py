@@ -8,6 +8,7 @@ import date_util as du
 
 
 class Policy(object):
+    ''' t_time needs to be removed also dates should be stored and datetime not wxDateTime'''
     def __init__(self, title='Title', message='message',
                  s_time=None, date=wx.DateTime.Today(), period='Daily',
                  message_type='Notification', t_time=wx.DateTime.Today()):
@@ -23,6 +24,8 @@ class Policy(object):
                     'Anually': 2, 'One Time Only': 1}
 
     def get_nth_policy_date(self, n=1):
+        ''' Find a future date for the policy. Intentionaly left 
+        incomplete for futher exention'''
         if self.period == 'Daily':
             return du.add_days(self.date, n)
         elif self.period == 'Weekly':
@@ -35,7 +38,7 @@ class Policy(object):
             pass
 
     def update_policy_date(self):
-        print(self)
+        ''' Increment policy date until date is in the future.'''
         while self.date < datetime.now():
             self.date = self.get_nth_policy_date(1)
 
@@ -73,11 +76,11 @@ class Reminder(object):
     def __init__(self, title, message, s_time, exec_datetime, period, message_type, id, timer):
         self.title = title
         self.message = message
-        self.s_time = s_time
-        self.exec_datetime = exec_datetime
+        self.s_time = s_time #time of day as a string
+        self.exec_datetime = exec_datetime #the execution time and date for the reminder
         self.period = period
         self.message_type = message_type
-        self.id = id
+        self.id = id # id of the policy the reminder was derived from
         self.timer = timer
 
     def advance_reminder_time(self, n=30):
@@ -129,3 +132,65 @@ def create_policly_sentence(plcy):
         sentence = 'Execute \'' + str(plcy.title) + '\' on ' + str(
             plcy.date.strftime('%A %B %d %Y')) + ' at ' + str(plcy.s_time) + '.'
         return sentence
+
+
+def create_reminder_instance(plcy, dt):
+    '''timer is set in the MainFrame object'''
+    rmdr = Reminder(plcy.title, plcy.message, plcy.s_time,
+                    dt, plcy.period, plcy.message_type, plcy.id, timer=0)
+    return rmdr
+
+def create_new_reminder(plcy, i):
+    '''Takes a policy object and a period increment.
+    Returns a reminder instance for the given policy and increment.'''
+    if plcy.period == 'Daily':
+        dt = du.add_days(plcy.date, i)
+        if not dt < datetime.now():
+            rmdr = create_reminder_instance(plcy, dt)
+            return rmdr
+    elif plcy.period == 'Weekly':
+        dt = du.add_weeks(plcy.date, i)
+        if not dt < datetime.now():
+            rmdr = create_reminder_instance(plcy, dt)
+            return rmdr
+    elif plcy.period == 'Monthly':
+        dt = du.add_months(plcy.date, i)
+        if not dt < datetime.now():
+            rmdr = create_reminder_instance(plcy, dt)
+            return rmdr
+    elif plcy.period == 'Anually':
+        dt = du.add_years(plcy.date, i)
+        if not dt < datetime.now():
+            rmdr = create_reminder_instance(plcy, dt)
+            return rmdr
+    else:
+        dt = plcy.date
+        if not dt < datetime.now():
+            rmdr = create_reminder_instance(plcy, dt)
+            return rmdr
+
+def create_pending_reminders(plcy):
+    '''Takes a policy instance an generates its pending
+    reminder instances, depending on the 'per' dictionary'''
+    per = {'Daily': 7, 'Weekly': 4, 'Monthly': 3,
+           'Anually': 2, 'One Time Only': 1}
+    p = per[plcy.period]
+    reminder_list = []
+    for i in range(0, p):
+        rmdr = create_new_reminder(plcy, i)
+        if rmdr is not None:
+            reminder_list.append(rmdr)
+    return reminder_list
+
+
+def build_reminder_list(plcyl):
+    '''Steps through all the policies and builds a
+    list of reminder instances from them.'''
+    rml = [] #reminder list
+    for plcy in plcyl:
+        rml.extend(create_pending_reminders(plcy))
+    rml = sorted(rml, key=lambda rmdr: rmdr.exec_datetime)
+    return rml
+
+
+

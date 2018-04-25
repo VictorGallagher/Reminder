@@ -4,7 +4,8 @@
 from wx import DateTime
 from datetime import datetime
 from dateutil.relativedelta import *
-#from dateutil import relativedelta
+
+
 '''useful date functions'''
 
 def add_minutes(d, n):

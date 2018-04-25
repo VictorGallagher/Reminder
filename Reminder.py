@@ -11,9 +11,8 @@ from datetime import *
 from dateutil.relativedelta import *
 import sys
 import threading
-import policy as pl
 import date_util as du
-
+import policy as pl
 
 #si = singleton.SingleInstance()
 
@@ -130,15 +129,12 @@ class PolicyDialog(wx.Dialog):
         title = self.title_box.GetValue()
         message = self.message_box.GetValue()
         time = self.time_ctrl.GetValue()
-        print('time type(time)', type(time))
         t = self.time_ctrl.GetValue(as_wxDateTime=True)
-        print('t type', type(t))
         date = self.calen_ctrl.GetDate()
-        print('date type ', type(date))
-        date = splice_wxDate_wxTime(date, t)
+        date = du.splice_wxDate_wxTime(date, t)
         period = self.periods_combo.GetValue()
         message_type = self.message_type_combo.GetValue()
-        self.plcy = Policy(title, message, time, date, period, message_type, t)
+        self.plcy = pl.Policy(title, message, time, date, period, message_type, t)
         sentence = pl.create_policly_sentence(self.plcy)
         self.reminder_verify.SetBackgroundColour('lightblue')
         self.reminder_verify.AppendText(sentence)
@@ -162,7 +158,6 @@ class MainFrame(wx.Frame):
                     wx.CLOSE_BOX | wx.CLIP_CHILDREN | wx.RESIZE_BORDER)
 
     def __init__(self, title='Reminder', pos=(10, 10), size=(700, 650), style=wx.SIMPLE_BORDER | custom_style):
-
         wx.Frame.__init__(self, None, id=-1, title=title, pos=pos, size=size)
         #self.name = "ReminderApp-%s" % wx.GetUserId()
         #self.instance = wx.SingleInstanceChecker(self.name)
@@ -183,12 +178,11 @@ class MainFrame(wx.Frame):
         delete_policy_menu_item = policymenu.Append(wx.NewId(), '&Delete')
         policymenu.AppendSeparator()
         close_menu_item = policymenu.Append(wx.ID_EXIT, '&Close')
-        helpmenu = wx.Menu() 
+        helpmenu = wx.Menu()
         menuBar.Append(helpmenu, '&Help')
         help_menu_item = helpmenu.Append(wx.NewId(), '&Help')
         about_menu_item = helpmenu.Append(wx.ID_ABOUT, '&About', 'About Reminder')
         self.SetMenuBar(menuBar)
-        #self.statusbar = self.CreateStatusBar()
         self.Bind(wx.EVT_MENU, self.onAboutDlg, about_menu_item)
         self.Bind(wx.EVT_MENU, self.onHelpHtmlDlg, help_menu_item)
         self.Bind(wx.EVT_MENU, self.on_create_policy_btn,
@@ -233,11 +227,17 @@ class MainFrame(wx.Frame):
         self.policy_listbox.Bind(
             wx.EVT_LEFT_DCLICK, self.on_policy_listbox_doubleclick)
         #self.Bind(wx.EVT_ICONIZE, self.onMinimize)
-        #self.policy_listbox.Bind(wx.EVT_LISTBOX, self.on_policy_listbox_selection)
 
         from xml.dom import minidom as md
-
-        xml_data = md.parse('policies.rmdr')
+        try:
+            with open('policies.rmdr', 'r') as xml_file:
+        except IOError as e:
+            print "I/O error({0}): {1}".format(e.errno, e.strerror)
+            xml_file = open('policies.bkup', 'r')
+        except:
+            print "Unexpected error:", sys.exc_info()[0]
+            sys.exit()
+        xml_data = md.parse(xml_file)
         if len(str(xml_data)) > 50:
             policies = xml_data.getElementsByTagName('policy')
             for policy in policies:
@@ -259,7 +259,6 @@ class MainFrame(wx.Frame):
                     'message_type')[0].firstChild.nodeValue
                 t_time = policy.getElementsByTagName(
                     't_time')[0].firstChild.nodeValue
-                #t_time = datetime.strptime(t_time, '%a %b %d %H:%M:%S %Y')
                 if not(date < datetime.now() and period == 'One Time Only'):
                     policy = (pl.Policy(title, message, s_time,
                                      date, period, message_type, t_time))
@@ -267,7 +266,8 @@ class MainFrame(wx.Frame):
                     self.policy_list.append(policy)
             self.save_to_xml()
             self.populate_policy_box()
-            self.build_reminder_list()
+            self.reminder_list = pl.build_reminder_list(self.policy_list)
+            self.set_all_reminders_timers(self.reminder_list)
             self.show_pending_reminders()
 
 #    def onMinimize(self, event):
@@ -291,11 +291,26 @@ class MainFrame(wx.Frame):
             if p is plcy:
                 del p
 
+    def create_timer(self, dt, plcy):
+        delay = (dt - datetime.now())
+        t = threading.Timer(delay.total_seconds(), self.ok_yes_no, [delay, dt, plcy])
+        t = t.start
+        return t
+
+    def set_policy_reminders_timers(self, plcy):
+        for rmdr in self.reminder_list:
+            if rmdr.id == plcy.id:
+                rmdr.timer = self.create_timer(rmdr.exec_datetime, plcy)
+
+    def set_all_reminders_timers(self, rmdrl):
+        for rmdr in rmdrl:
+            t = self.create_timer(rmdr.exec_datetime, rmdr)
+            rmdr.timer = t
+
     def delete_policy_reminders(self, plcy):
         for rmdr in self.reminder_list:
-            if rmdr.id == plcy.id
+            if rmdr.id == plcy.id:
                 del rmdr
-
 
     def save_to_xml(self):
         bkup = open('policies.bkup', 'w')
@@ -333,7 +348,7 @@ class MainFrame(wx.Frame):
                 plcy.update_policy_date()
                 dt = plcy.get_last_policy_date()
                 self.reminder_list.append(
-                    self.create_reminder_instance(plcy, dt))
+                    pl.create_reminder_instance(plcy, dt))
             else:
                 self.delete_policy(plcy)
                 self.populate_policy_box()
@@ -345,65 +360,11 @@ class MainFrame(wx.Frame):
                 plcy.update_policy_date()
                 dt = plcy.get_last_policy_date()
                 self.reminder_list.append(
-                    self.create_reminder_instance(plcy, dt))
+                    pl.create_reminder_instance(plcy, dt))
             else:
                 self.delete_policy(plcy)
                 self.populate_policy_box()
             self.show_pending_reminders()
-
-    def create_timer(self, dt, plcy):
-        delay = (dt - datetime.now())
-        t = threading.Timer(delay.total_seconds(),
-                            self.ok_yes_no, [delay, dt, plcy])
-        return t.start()
-
-    def create_reminder_instance(self, plcy, dt):
-        timer = self.create_timer(dt, plcy)
-        rmdr = pl.Reminder(plcy.title, plcy.message, plcy.s_time,
-                        dt, plcy.period, plcy.message_type, plcy.id, timer=timer)
-        return rmdr
-
-    def create_new_reminder(self, plcy, p):
-        if plcy.period == 'Daily':
-            dt = du.add_days(plcy.date, p)
-            if not dt < datetime.now():
-                rmdr = self.create_reminder_instance(plcy, dt)
-                return rmdr
-        elif plcy.period == 'Weekly':
-            dt = du.add_weeks(plcy.date, p)
-            if not dt < datetime.now():
-                rmdr = self.create_reminder_instance(plcy, dt)
-                return rmdr
-        elif plcy.period == 'Monthly':
-            dt = du.add_months(plcy.date, p)
-            if not dt < datetime.now():
-                rmdr = self.create_reminder_instance(plcy, dt)
-                return rmdr
-        elif plcy.period == 'Anually':
-            dt = du.add_years(plcy.date, p)
-            if not dt < datetime.now():
-                rmdr = self.create_reminder_instance(plcy, dt)
-                return rmdr
-        else:
-            dt = plcy.date
-            if not dt < datetime.now():
-                rmdr = self.create_reminder_instance(plcy, dt)
-                return rmdr
-
-    def create_pending_reminders(self, plcy):
-        per = {'Daily': 7, 'Weekly': 4, 'Monthly': 3,
-               'Anually': 2, 'One Time Only': 1}
-        p = per[plcy.period]
-        for i in range(0, p):
-            rmdr = self.create_new_reminder(plcy, i)
-            if rmdr is not None:
-                self.reminder_list.append(rmdr)
-
-    def build_reminder_list(self):
-        for plcy in self.policy_list:
-            self.create_pending_reminders(plcy)
-        self.reminder_list = sorted(
-            self.reminder_list, key=lambda rmdr: rmdr.exec_datetime)
 
     def show_pending_reminders(self):
         self.reminder_listctrl.DeleteAllItems()
@@ -436,17 +397,18 @@ class MainFrame(wx.Frame):
             if plcy.message_type == 'One Time Only':
                 plcy.advance_policy_time(30)
                 new_time = plcy.date
-                new_policy = Policy(title=plcy.title, message=plcy.message, s_time=plcy.s_time,
-                                t_time=plcy.t_time, date=plcy.date, period=plcy.period, message_type=plcy.message_type)
+                new_policy = pl.Policy(title=plcy.title, message=plcy.message, 
+                    s_time=plcy.s_time, t_time=plcy.t_time, date=plcy.date, 
+                    period=plcy.period, message_type=plcy.message_type)
                 self.policy_list.append(new_policy)
-                rmdr = self.create_reminder_instance(new_policy, new_time)
+                rmdr = pl.create_reminder_instance(new_policy, new_time)
                 self.reminder_list.append(rmdr)
                 self.reminder_list = sorted(
                     self.reminder_list, key=lambda rmdr: rmdr.exec_datetime)
                 self.show_pending_reminders()
             else:
                 rmdr.advance_reminder_time(30)
-                self.rmdr.timer = create_timer(self, rmdr.date, plcy)
+                self.rmdr.timer = self.create_timer(self, rmdr.date, plcy)
                 self.reminder_list.append(rmdr)
                 self.reminder_list = sorted(
                     self.reminder_list, key=lambda rmdr: rmdr.exec_datetime)
@@ -484,9 +446,10 @@ class MainFrame(wx.Frame):
                 plcy.t_time = dlg.time_ctrl.GetValue(as_wxDateTime=True)
                 plcy.date = dlg.calen_ctrl.GetDate()
                 # construct the execution datetime for the reminder
-                plcy.date = splice_wxDate_wxTime(plcy.date, plcy.t_time)
+                plcy.date = du.splice_wxDate_wxTime(plcy.date, plcy.t_time)
                 delete_policy_reminders(plcy)
-                create_pending_reminders(plcy)
+                self.reminder_list = pl.create_pending_reminders(plcy)
+                self.reminder_list = self.set_policy_reminders_timers(plcy)
             plcy.period = dlg.periods_combo.GetValue()
             plcy.message_type = dlg.message_type_combo.GetValue()
             self.policy_list[index] = plcy
@@ -502,7 +465,7 @@ class MainFrame(wx.Frame):
     def on_create_policy_btn(self, event):
         dlg = PolicyDialog(self)
         ret = dlg.ShowModal()
-        plcy = Policy()
+        plcy = pl.Policy()
         if ret == wx.ID_OK:
             plcy.title = dlg.title_box.GetValue()
             plcy.message = dlg.message_box.GetValue()
@@ -510,14 +473,15 @@ class MainFrame(wx.Frame):
             plcy.t_time = dlg.time_ctrl.GetValue(as_wxDateTime=True)
             plcy.date = dlg.calen_ctrl.GetDate()
             # construct the execution datetime for the reminder
-            plcy.date = splice_wxDate_wxTime(plcy.date, plcy.t_time)
+            plcy.date = du.splice_wxDate_wxTime(plcy.date, plcy.t_time)
             plcy.period = dlg.periods_combo.GetValue()
             plcy.message_type = dlg.message_type_combo.GetValue()
             self.reminder_listctrl.DeleteAllItems()
             self.policy_list.append(plcy)
             self.save_to_xml()
             self.populate_policy_box()
-            self.create_pending_reminders(plcy)
+            self.reminder_list.extend(pl.create_pending_reminders(plcy))
+            self.set_policy_reminders_timers(plcy)
             self.show_pending_reminders()
             dlg.Destroy()
         elif ret == wx.ID_CANCEL:
@@ -528,6 +492,8 @@ class MainFrame(wx.Frame):
         aboutDlg.Show()
 
     def onAboutDlg(self, event):
+        file = open('LICENSE')
+        license = file.read()
         info = wx.adv.AboutDialogInfo()
         info.Name = 'Reminder'
         info.Version = '0.1 Beta'
@@ -538,10 +504,9 @@ class MainFrame(wx.Frame):
             350, wx.ClientDC(self.p_panel))
         info.Developers = ['Victor Gallagher',
                            ' victor.lamont.gallagher @ gmail.com']
-        info.License = wordwrap('This is free and unencumbered software released into the public domain. Anyone is free to copy, '
-                                350, wx.ClientDC(self.p_panel), margin=5)
+        info.License = wordwrap(license, 600, wx.ClientDC(self.p_panel), margin=5)
         wx.adv.AboutBox(info)
-        #remember to open and and licence 
+
 
     def on_close(self, event):
         self.Destroy()
@@ -556,6 +521,5 @@ if __name__ == '__main__':
     appFrame = MainFrame()
     appFrame.Show()
     app.MainLoop()
-
 
 
