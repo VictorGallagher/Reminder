@@ -40,12 +40,13 @@ class Policy(object):
     def update_policy_date(self):
         ''' Increment policy date until date is in the future.'''
         while self.date < datetime.now():
+            print('policy file date', self.date)
             self.date = self.get_nth_policy_date(1)
 
     def get_last_policy_date(self):
         return self.get_nth_policy_date(self.prd[self.period])
 
-    def advance_policy_time(self, n=30):
+    def advance_policy_minutes(self, n=30):
         self.date = du.add_minutes(self.date, n)
 
 #    def __str__(self):
@@ -111,7 +112,8 @@ def create_policly_sentence(plcy):
             str(plcy.title) + '\' every day at ' + str(plcy.s_time) + '.'
         return sentence
     elif plcy.period == 'Weekly':
-        weekday = du.get_weekday_name(plcy.date.weekday())
+        #weekday = du.get_weekday_name(plcy.date.weekday())
+        weekday = plcy.date.strftime('%A')
         sentence = 'Execute \'' + \
             str(plcy.title) + '\' every ' + str(weekday) + \
             ' at ' + str(plcy.s_time) + '.'
@@ -123,7 +125,8 @@ def create_policly_sentence(plcy):
         return sentence
     elif plcy.period == 'Anually':
         day = plcy.date.day
-        month = du.get_month_name(plcy.date.month)
+        #month = du.get_month_name(plcy.date.month)
+        month = plcy.date.strftime('%B')
         sentence = 'Execute \'' + plcy.title + '\' on the ' + \
             str(day) + du.get_sufix(day) + ' of every ' + \
             month + ' at ' + str(plcy.s_time) + '.'

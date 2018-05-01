@@ -32,7 +32,7 @@ def add_years(d, n):
     return d + relativedelta(years=+n)
 
 
-def get_weekday_name(self, d):
+def get_weekday_name( d):
     days = ['Sunday', 'Monday', 'Tuesday',
             'Wenesday', 'Thursday', 'Friday', 'Saturday']
     return days[d]
@@ -56,7 +56,7 @@ def get_sufix(self, d):
 def convert_wxDateTime_to_datetime(mwxDateTime):
     # Converts a value wx.DateTime into a datetime.datetime
     return datetime(
-        int(mwxDateTime.GetYear()), 
+        int(mwxDateTime.GetYear()),
         int(mwxDateTime.GetMonth() + 1),
         int(mwxDateTime.GetDay()),
         int(mwxDateTime.GetHour()),
