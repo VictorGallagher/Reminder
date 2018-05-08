@@ -8,7 +8,7 @@ from dateutil.relativedelta import *
 
 '''useful date functions'''
 
-def add_minutes(d, n):
+def add_minutes(d, n): 
     return d + relativedelta(minutes=+n)
 
 
@@ -32,7 +32,7 @@ def add_years(d, n):
     return d + relativedelta(years=+n)
 
 
-def get_weekday_name( d):
+def get_weekday_name(d):
     days = ['Sunday', 'Monday', 'Tuesday',
             'Wenesday', 'Thursday', 'Friday', 'Saturday']
     return days[d]
@@ -61,7 +61,7 @@ def convert_wxDateTime_to_datetime(mwxDateTime):
         int(mwxDateTime.GetDay()),
         int(mwxDateTime.GetHour()),
         int(mwxDateTime.GetMinute())
-    )
+        )
 
 
 def convert_datetime_to_wxDateTime(pyDateTime):
@@ -74,7 +74,7 @@ def convert_datetime_to_wxDateTime(pyDateTime):
 
 
 def splice_wxDate_wxTime(date, time):
-    '''Merge a date with a time, takes wxDate and wxTime, returns datetime '''
+    '''Merge a date with a time, takes wxDate and wxTime, returns datetime object'''
     date.hour = time.hour
     date.minute = time.minute
     date = convert_wxDateTime_to_datetime(date)

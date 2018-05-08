@@ -7,14 +7,13 @@ import wx.adv
 import wx.lib.masked as masked
 import wx.html
 from wx.lib.wordwrap import wordwrap
+
 from datetime import *
-#from dateutil.relativedelta import *
 import sys
-import threading
 import date_util as du
 import policy as pl
 import copy
-import traceback
+
 
 
 class HtmlWindow(wx.html.HtmlWindow):
@@ -138,9 +137,9 @@ class PolicyDialog(wx.Dialog):
         if date < datetime.now():
             print('Main File date ', date)
             self.plcy.update_policy_date()
-        sentence = pl.create_policly_sentence(self.plcy)
+        discription = self.plcy.get_policy_discription()
         self.reminder_verify.SetBackgroundColour('lightblue')
-        self.reminder_verify.AppendText(sentence)
+        self.reminder_verify.AppendText(discription) 
 
     def OnDialogButton(self, event):
         e = event.GetEventObject()
@@ -152,25 +151,40 @@ class PolicyDialog(wx.Dialog):
         elif label == 'Cancel':
             self.EndModal(wx.ID_CANCEL)
 
+class SysTray(wx.adv.TaskBarIcon):  
+
+    def __init__(self, parent, icon, text):
+        wx.adv.TaskBarIcon.__init__(self)
+        self.parentApp = parent
+        self.SetIcon(icon, text)
+        self.CreateMenu()
+
+    def CreateMenu(self):
+        self.Bind(wx.adv.EVT_TASKBAR_RIGHT_UP, self.ShowMenu)
+        self.menu = wx.Menu()
+        self.menu.Append(wx.ID_OPEN, "Show")
+        self.menu.Append(wx.ID_EXIT, "Close")
+
+    def ShowMenu(self, event):
+        self.PopupMenu(self.menu)
+
 
 class MainFrame(wx.Frame):
-    #dt = datetime.now().strftime('%A')
-    #dt = dt + ' ' + datetime.now().strftime('%b-%d,%Y')
-    #dt = dt + ' ' + datetime.now().strftime('%I:%M %p')
     custom_style = (wx.MINIMIZE_BOX | wx.SYSTEM_MENU | wx.CAPTION |
                     wx.CLOSE_BOX | wx.CLIP_CHILDREN | wx.RESIZE_BORDER)
 
     def __init__(self, title='Reminder', pos=(10, 10), size=(700, 650), style=wx.SIMPLE_BORDER | custom_style):
         wx.Frame.__init__(self, None, id=-1, title=title, pos=pos, size=size)
-        #self.name = "ReminderApp-%s" % wx.GetUserId()
-        #self.instance = wx.SingleInstanceChecker(self.name)
-        # if self.instance.IsAnotherRunning():
-        # self.Destroy()
+        self.name = "ReminderApp-%s" % wx.GetUserId()
+        self.instance = wx.SingleInstanceChecker(self.name)
+        if self.instance.IsAnotherRunning():
+            self.Destroy()
         image = wx.Image('reminder_finger2.png',
                          wx.BITMAP_TYPE_PNG).ConvertToBitmap()
         icon = wx.Icon()
         icon.CopyFromBitmap(image)
         self.SetIcon(icon)
+        self.trayicon = SysTray(self, icon, 'Test')
         self.policy_list = []
         self.reminder_list = []
         menuBar = wx.MenuBar()
@@ -194,6 +208,8 @@ class MainFrame(wx.Frame):
                   edit_policy_menu_item)
         self.Bind(wx.EVT_MENU, self.on_close, close_menu_item)
         self.Bind(wx.EVT_MENU, self.on_delete_btn, delete_policy_menu_item)
+        #self.trayicon.Bind(wx.EVT_MENU, self.on_close, wx.ID_EXIT)
+        #self.trayicon.Bind(wx.EVT_MENU, self.Show, wx.ID_ANY)
         self.p_panel = wx.Panel(self, wx.ID_ANY)
         ptext1 = wx.StaticText(self.p_panel, -1, '  Policies:')
         self.policy_listbox = wx.ListBox(
@@ -300,16 +316,17 @@ class MainFrame(wx.Frame):
 
     def create_timer(self, plcy, dt):
         delay = (dt - datetime.now())
-        t = threading.Timer(delay.total_seconds(), self.ok_yes_no, [delay, dt, plcy])
-        t.setDaemon(True)
-        #timer = t.start()
+        #t = threading.Timer(delay.total_seconds(), self.dispatch_dialog, [delay, dt, plcy])
+        #t.setDaemon(True)
+        t = wx.CallLater(delay.total_seconds()*1000, self.dispatch_dialog, delay=delay, dt=dt, plcy=plcy)
         return t
 
     def start_reminder_timers_for_this_policy(self, plcy):
         for rmdr in self.reminder_list:
             if rmdr.id == plcy.id:
                 rmdr.timer = self.create_timer(plcy, rmdr.exec_datetime)
-                rmdr.timer.start()
+                #rmdr.timer.start()
+                rmdr.timer.Start()
 
     def start_timers_for_all_reminders(self, rmdrl):
         for plcy in self.policy_list:
@@ -335,29 +352,20 @@ class MainFrame(wx.Frame):
 
     def cancel_all_timers(self):
         for rmdr in self.reminder_list:
-            rmdr.timer.cancel()
+            rmdr.timer.Stop()
             del rmdr
 
     def add_pending_reminder(self, rmdr):
         index = self.reminder_listctrl.InsertItem(
             sys.maxsize, str(rmdr.exec_datetime.strftime('%A, %b-%d, %Y')))
         self.reminder_listctrl.SetItem(index, 1, rmdr.s_time)
-        self.reminder_listctrl.SetItem(index, 2, rmdr.title) 
+        self.reminder_listctrl.SetItem(index, 2, rmdr.title)
         self.reminder_listctrl.SetItem(index, 3, rmdr.period)
         self.reminder_listctrl.SetItem(index, 4, rmdr.message_type)
         return index
 
-    def ok_yes_no(self, delay, dt, plcy):
+    def dispatch_dialog(self, delay, dt, plcy):
         # decides wich dialog to use
-        try:
-            assert type(plcy) is pl.Policy
-        except:
-            tb = traceback.format_exc()
-        else:
-            tb = 'No Error'
-        finally:
-            print(tb)
-
         if plcy.message_type == 'Notification':
             wx.CallAfter(self.reminder_dlg, plcy.message, plcy.title)
             self.reminder_list.pop(0)
@@ -392,12 +400,12 @@ class MainFrame(wx.Frame):
             if index % 2:
                 self.reminder_listctrl.SetItemBackgroundColour(index, 'white')
             else:
-                self.reminder_listctrl.SetItemBackgroundColour(
-                    index, 'lightblue')
+                self.reminder_listctrl.SetItemBackgroundColour(index, 'lightblue')
 
     def reminder_dlg(self, msg, cptn):
         dlg = wx.MessageDialog(
-            None, message=msg, caption=cptn, style=wx.OK | wx.ICON_INFORMATION | wx.STAY_ON_TOP)
+            None, message=msg, caption=cptn, style=wx.OK | 
+                wx.ICON_INFORMATION | wx.STAY_ON_TOP)
         result = dlg.ShowModal()
         if result == wx.OK:
             dlg.Destroy()
@@ -406,7 +414,7 @@ class MainFrame(wx.Frame):
 
     def question_dlg(self, plcy):
         dlg = wx.MessageDialog(self, message=plcy.message, caption=plcy.title,
-                               style=wx.YES_NO | wx.ICON_QUESTION | wx.YES_DEFAULT | wx.STAY_ON_TOP)
+                style=wx.YES_NO | wx.ICON_QUESTION | wx.YES_DEFAULT | wx.STAY_ON_TOP)
         if dlg.ShowModal() == wx.ID_YES:
             dlg.Destroy()
         else:
@@ -416,7 +424,7 @@ class MainFrame(wx.Frame):
                 new_policy = copy.copy(plcy)
                 new_policy.s_time = new_time.strftime('%I:%M %p')
                 self.policy_list.append(new_policy)
-                rmdr = pl.create_reminder_instance(new_policy, new_time)
+                rmdr = new_policy.create_reminder_instance(new_time)
                 rmdr.s_time = new_policy.s_time
                 self.reminder_list.append(rmdr)
                 self.reminder_list = sorted(self.reminder_list,
@@ -427,7 +435,7 @@ class MainFrame(wx.Frame):
             else:
                 new_time = datetime.now()
                 new_time = du.add_minutes(new_time, 30)
-                rmdr = pl.create_reminder_instance(plcy, new_time)
+                rmdr = plcy.create_reminder_instance(new_time)
                 rmdr.s_time = new_time.strftime('%I:%M %p')
                 rmdr.timer = self.create_timer(plcy, new_time)
                 self.reminder_list.append(rmdr)
@@ -443,8 +451,8 @@ class MainFrame(wx.Frame):
             self.policy_list, key=lambda plcy: plcy.date)
         self.policy_listbox.Clear()
         for p in self.policy_list:
-            policy_sentence = pl.create_policly_sentence(p)
-            self.policy_listbox.Append(policy_sentence)
+            policy_discription = p.get_policy_discription()
+            self.policy_listbox.Append(policy_discription)
 
     def on_policy_listbox_doubleclick(self, event):
         index = self.policy_listbox.GetSelection()
@@ -534,7 +542,7 @@ class MainFrame(wx.Frame):
         self.save_to_xml()
         for plcy in self.policy_list:
             self.delete_policy(plcy)
-            # self.cancel_all_timers()
+            self.cancel_all_timers()
 
 if __name__ == '__main__':
     app = wx.App(False)
